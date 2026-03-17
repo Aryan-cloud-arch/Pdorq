@@ -27,7 +27,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch profile and wallet
   const fetchUserData = async (userId: string) => {
     const [profileData, walletData] = await Promise.all([
       profileApi.get(userId),
@@ -37,9 +36,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setWallet(walletData);
   };
 
-  // Initialize auth state
   useEffect(() => {
-    // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -49,14 +46,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
     });
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Small delay to ensure database trigger has completed
           setTimeout(() => fetchUserData(session.user.id), 500);
         } else {
           setProfile(null);
