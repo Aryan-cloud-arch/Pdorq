@@ -1,377 +1,334 @@
 import { useState, useEffect } from 'react';
-import { Platform, Service, Currency } from './types';
-import { platforms } from './data/platforms';
+import { useAuth } from './contexts/AuthContext';
 import Navbar from './components/Navbar';
+import Hero from './components/Hero';
+import Services from './components/Services';
+import Process from './components/Process';
+import Reviews from './components/Reviews';
+import FAQ from './components/FAQ';
+import Footer from './components/Footer';
+import Auth from './components/Auth';
+import Wallet from './components/Wallet';
+import Settings from './components/Settings';
+import OrderForm from './components/OrderForm';
+import OrderHistory from './components/OrderHistory';
+import LiveChat from './components/LiveChat';
+import CookieConsent from './components/CookieConsent';
+import AnnouncementBar from './components/AnnouncementBar';
+import CursorGlow from './components/CursorGlow';
+import TrustBadges from './components/TrustBadges';
+import LegalPages from './components/LegalPages';
 import HomePage from './components/HomePage';
 import ServicesPage from './components/ServicesPage';
-import OrderForm from './components/OrderForm';
-import Reviews from './components/Reviews';
-import Support from './components/Support';
-import Footer from './components/Footer';
-import CursorGlow from './components/CursorGlow';
-import Settings, { currencies } from './components/Settings';
-import Auth, { User } from './components/Auth';
-import FAQ from './components/FAQ';
-import LegalPages from './components/LegalPages';
-import LiveChat, { ChatButton } from './components/LiveChat';
-import CookieConsent from './components/CookieConsent';
-import OrderHistory from './components/OrderHistory';
-import AnnouncementBar from './components/AnnouncementBar';
-import AboutPage from './components/AboutPage';
-import ContactPage from './components/ContactPage';
 import PricingPage from './components/PricingPage';
 import HowItWorksPage from './components/HowItWorksPage';
-import ReferralProgram from './components/ReferralProgram';
-import StatusPage from './components/StatusPage';
+import AboutPage from './components/AboutPage';
+import ContactPage from './components/ContactPage';
+import NotFoundPage from './components/NotFoundPage';
 import BlogPage from './components/BlogPage';
+import StatusPage from './components/StatusPage';
 import Newsletter from './components/Newsletter';
+import { platforms } from './data/platforms';
 
-type Page = 'home' | 'services' | 'reviews' | 'faq' | 'order' | 'dashboard' | 'about' | 'contact' | 'pricing' | 'how-it-works' | 'referral' | 'status' | 'blog';
+const defaultCurrency = {
+  code: 'USD', symbol: '$', name: 'US Dollar', flag: '🇺🇸', rate: 1,
+  exchangeRate: '1.00'
+};
 
-function App() {
+type Page = 'home' | 'services' | 'reviews' | 'faq' | 'order' | 'pricing' | 'how-it-works' | 'about' | 'contact' | 'blog' | 'status';
+
+export default function App() {
+  const { user, profile, wallet, loading, signOut, refreshWallet } = useAuth();
+
+  // UI State
   const [currentPage, setCurrentPage] = useState<Page>('home');
-  const [preSelectedPlatform, setPreSelectedPlatform] = useState<Platform | null>(null);
-  const [preSelectedService, setPreSelectedService] = useState<Service | null>(null);
-  const [walletBalance, setWalletBalance] = useState(0);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
-  const [currency, setCurrency] = useState<Currency>(currencies[0]);
-  const [user, setUser] = useState<User | null>(null);
-  const [showChat, setShowChat] = useState(false);
-  const [cookieConsent, setCookieConsent] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('pdorq_cookie_consent') === 'true';
-    }
-    return false;
-  });
-  const [legalPage, setLegalPage] = useState<'terms' | 'privacy' | 'refund' | null>(null);
-  const [showOrderHistory, setShowOrderHistory] = useState(false);
+  const [showAuth, setShowAuth] = useState(false);
+  const [showWallet, setShowWallet] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showOrders, setShowOrders] = useState(false);
+  const [showLegal, setShowLegal] = useState<string | null>(null);
+  const [currency, setCurrency] = useState(defaultCurrency);
+  const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
+  const [selectedService, setSelectedService] = useState<string | null>(null);
   const [orders, setOrders] = useState<any[]>([]);
+  const [showAnnouncement, setShowAnnouncement] = useState(true);
 
-  // Handle cookie consent
-  useEffect(() => {
-    if (cookieConsent) {
-      localStorage.setItem('pdorq_cookie_consent', 'true');
+  // Build user object for components
+  const appUser = profile ? {
+    name: profile.full_name || 'User',
+    email: profile.email,
+    isVerified: profile.is_verified
+  } : null;
+
+  const balance = wallet?.balance || 0;
+
+  // Navigate with login check
+  const navigateToOrder = (platform?: string, service?: string) => {
+    if (!user) {
+      setShowAuth(true);
+      return;
     }
-  }, [cookieConsent]);
+    if (platform) setSelectedPlatform(platform);
+    if (service) setSelectedService(service);
+    setCurrentPage('order');
+    window.scrollTo(0, 0);
+  };
 
-  // Scroll to top when page changes
+  const handlePageChange = (page: string) => {
+    setCurrentPage(page as Page);
+    window.scrollTo(0, 0);
+  };
+
+  const handleOrderSubmit = (order: any) => {
+    setOrders(prev => [{ ...order, id: 'PDQ-' + Math.random().toString(36).substring(2, 8).toUpperCase(), date: new Date().toISOString(), status: 'processing' }, ...prev]);
+  };
+
+  const handleLoginClick = () => setShowAuth(true);
+
+  const handleSignOut = async () => {
+    await signOut();
+  };
+
+  // Page title
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    const titles: Record<string, string> = {
+      home: 'PDORQ — Elite Takedown Operations',
+      services: 'Services — PDORQ',
+      reviews: 'Reviews — PDORQ',
+      faq: 'FAQ — PDORQ',
+      order: 'Place Order — PDORQ',
+      pricing: 'Pricing — PDORQ',
+      'how-it-works': 'How It Works — PDORQ',
+      about: 'About — PDORQ',
+      contact: 'Contact — PDORQ',
+      blog: 'Blog — PDORQ',
+      status: 'Status — PDORQ'
+    };
+    document.title = titles[currentPage] || 'PDORQ';
   }, [currentPage]);
 
-  const handleAddFunds = (amount: number) => {
-    setWalletBalance(prev => prev + amount);
-  };
-
-  const navigateTo = (page: string) => {
-    if (page === 'dashboard') {
-      setShowOrderHistory(true);
-    } else {
-      setCurrentPage(page as Page);
-    }
-  };
-
-  const handleOrderWithPlatform = (platformId: string, serviceId?: string) => {
-    const platform = platforms.find(p => p.id === platformId);
-    if (platform) {
-      setPreSelectedPlatform(platform);
-      if (serviceId) {
-        const service = platform.services.find(s => s.id === serviceId);
-        setPreSelectedService(service || null);
-      } else {
-        setPreSelectedService(null);
-      }
-      setCurrentPage('order');
-    }
-  };
-
-  const handleClearPreselection = () => {
-    setPreSelectedPlatform(null);
-    setPreSelectedService(null);
-  };
-
-  const handleCurrencyChange = (newCurrency: Currency) => {
-    setCurrency(newCurrency);
-  };
-
-  const handleLogin = (loggedInUser: User) => {
-    setUser(loggedInUser);
-    if (loggedInUser.balance > 0) {
-      setWalletBalance(prev => prev + loggedInUser.balance);
-    }
-  };
-
-  const handleLogout = () => {
-    setUser(null);
-    setWalletBalance(0);
-  };
-
-  const handleOrderSubmit = (orderData: any) => {
-    const newOrder = {
-      id: `PDQ-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
-      ...orderData,
-      status: 'pending',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    setOrders(prev => [newOrder, ...prev]);
-  };
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0D0D0D] flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block w-8 h-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin mb-4"></div>
+          <p className="text-white/60 text-sm tracking-[0.3em] uppercase">Loading</p>
+        </div>
+      </div>
+    );
+  }
 
   const renderPage = () => {
     switch (currentPage) {
       case 'home':
         return (
-          <HomePage 
-            currency={currency}
-            onNavigate={navigateTo}
-            onOrderWithPlatform={handleOrderWithPlatform}
-            user={user}
-            onLoginClick={() => setIsAuthOpen(true)}
-          />
+          <>
+            <Hero onOrderClick={() => navigateToOrder()} />
+            <Services
+              platforms={platforms}
+              currency={currency}
+              onOrderClick={(platform, service) => navigateToOrder(platform, service)}
+            />
+            <TrustBadges />
+            <Process />
+            <Newsletter />
+            <Footer
+              onPageChange={handlePageChange}
+              onLegalClick={(page) => setShowLegal(page)}
+            />
+          </>
         );
       case 'services':
         return (
-          <ServicesPage 
-            currency={currency}
-            onNavigate={navigateTo}
-            onOrderWithPlatform={handleOrderWithPlatform}
-            user={user}
-            onLoginClick={() => setIsAuthOpen(true)}
-          />
+          <>
+            <ServicesPage
+              platforms={platforms}
+              currency={currency}
+              onOrderClick={(platform, service) => navigateToOrder(platform, service)}
+            />
+            <Footer onPageChange={handlePageChange} onLegalClick={(page) => setShowLegal(page)} />
+          </>
+        );
+      case 'pricing':
+        return (
+          <>
+            <PricingPage
+              platforms={platforms}
+              currency={currency}
+              onOrderClick={(platform, service) => navigateToOrder(platform, service)}
+            />
+            <Footer onPageChange={handlePageChange} onLegalClick={(page) => setShowLegal(page)} />
+          </>
+        );
+      case 'how-it-works':
+        return (
+          <>
+            <HowItWorksPage onOrderClick={() => navigateToOrder()} />
+            <Footer onPageChange={handlePageChange} onLegalClick={(page) => setShowLegal(page)} />
+          </>
+        );
+      case 'about':
+        return (
+          <>
+            <AboutPage />
+            <Footer onPageChange={handlePageChange} onLegalClick={(page) => setShowLegal(page)} />
+          </>
+        );
+      case 'contact':
+        return (
+          <>
+            <ContactPage />
+            <Footer onPageChange={handlePageChange} onLegalClick={(page) => setShowLegal(page)} />
+          </>
         );
       case 'reviews':
-        return <Reviews />;
+        return (
+          <>
+            <Reviews />
+            <Footer onPageChange={handlePageChange} onLegalClick={(page) => setShowLegal(page)} />
+          </>
+        );
       case 'faq':
-        return <FAQ />;
-      case 'about':
-        return <AboutPage currency={currency} />;
-      case 'contact':
-        return <ContactPage />;
-      case 'pricing':
-        return <PricingPage currency={currency} onOrderClick={handleOrderWithPlatform} />;
-      case 'how-it-works':
-        return <HowItWorksPage />;
-      case 'referral':
-        return <ReferralProgram currency={currency} user={user} />;
-      case 'status':
-        return <StatusPage onNavigate={navigateTo} />;
-      case 'blog':
-        return <BlogPage onNavigate={navigateTo} />;
+        return (
+          <>
+            <FAQ />
+            <Footer onPageChange={handlePageChange} onLegalClick={(page) => setShowLegal(page)} />
+          </>
+        );
       case 'order':
-        // Login gate for order page
-        if (!user) {
-          return (
-            <div className="pt-32 pb-20 px-4">
-              <div className="max-w-md mx-auto text-center">
-                <div className="bg-gradient-to-br from-[#1C1C1C] to-[#0D0D0D] border border-[#C5A572]/20 rounded-2xl p-12">
-                  <div className="w-20 h-20 mx-auto mb-6 bg-[#C5A572]/10 rounded-full flex items-center justify-center">
-                    <svg className="w-10 h-10 text-[#C5A572]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+        return (
+          <>
+            {user ? (
+              <OrderForm
+                platforms={platforms}
+                currency={currency}
+                selectedPlatform={selectedPlatform}
+                selectedService={selectedService}
+                onSubmit={handleOrderSubmit}
+                userBalance={balance}
+              />
+            ) : (
+              <div className="min-h-screen bg-[#0D0D0D] flex items-center justify-center px-4">
+                <div className="text-center max-w-md">
+                  <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-gold/10 flex items-center justify-center">
+                    <svg className="w-8 h-8 text-gold" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                     </svg>
                   </div>
-                  <h2 className="font-cormorant text-3xl mb-3 text-white">Authentication Required</h2>
-                  <p className="text-[#FAF9F6]/60 mb-8">Sign in to place an order and track your requests</p>
-                  
-                  <div className="space-y-3 mb-8">
-                    <div className="flex items-center gap-3 text-left">
-                      <svg className="w-5 h-5 text-[#C5A572] flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                      <span className="text-[#FAF9F6]/80">Track all your orders</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-left">
-                      <svg className="w-5 h-5 text-[#C5A572] flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                      <span className="text-[#FAF9F6]/80">Wallet & secure payments</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-left">
-                      <svg className="w-5 h-5 text-[#C5A572] flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                      <span className="text-[#FAF9F6]/80">Priority support access</span>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-3">
-                    <button
-                      onClick={() => setIsAuthOpen(true)}
-                      className="w-full py-3 bg-gradient-to-r from-[#C5A572] to-[#8B7355] text-[#0D0D0D] font-medium rounded-lg hover:shadow-lg hover:shadow-[#C5A572]/20 transition-all"
-                    >
-                      Sign In
-                    </button>
-                    <button
-                      onClick={() => setIsAuthOpen(true)}
-                      className="w-full py-3 border border-[#C5A572]/30 text-[#C5A572] font-medium rounded-lg hover:bg-[#C5A572]/10 transition-all"
-                    >
-                      Create Account
-                    </button>
-                  </div>
+                  <h2 className="text-2xl font-serif text-white mb-3">Authentication Required</h2>
+                  <p className="text-white/60 mb-6">Sign in to place an order</p>
+                  <button onClick={() => setShowAuth(true)} className="px-8 py-3 bg-gold text-black font-semibold rounded-lg hover:opacity-90 transition-all">
+                    Sign In
+                  </button>
                 </div>
               </div>
-            </div>
-          );
-        }
-        
+            )}
+            <Footer onPageChange={handlePageChange} onLegalClick={(page) => setShowLegal(page)} />
+          </>
+        );
+      case 'blog':
         return (
-          <div className="pt-20">
-            <OrderForm 
-              preSelectedPlatform={preSelectedPlatform}
-              preSelectedService={preSelectedService}
-              onClearPreselection={handleClearPreselection}
-              currency={currency}
-              onOrderSubmit={handleOrderSubmit}
-            />
-          </div>
+          <>
+            <BlogPage />
+            <Footer onPageChange={handlePageChange} onLegalClick={(page) => setShowLegal(page)} />
+          </>
+        );
+      case 'status':
+        return (
+          <>
+            <StatusPage />
+            <Footer onPageChange={handlePageChange} onLegalClick={(page) => setShowLegal(page)} />
+          </>
         );
       default:
         return (
-          <HomePage 
-            currency={currency}
-            onNavigate={navigateTo}
-            onOrderWithPlatform={handleOrderWithPlatform}
-            user={user}
-            onLoginClick={() => setIsAuthOpen(true)}
-          />
+          <>
+            <NotFoundPage onGoHome={() => handlePageChange('home')} />
+            <Footer onPageChange={handlePageChange} onLegalClick={(page) => setShowLegal(page)} />
+          </>
         );
     }
   };
 
   return (
-    <div 
-      className="min-h-screen bg-[#0D0D0D] selection:bg-[#C5A572]/30 selection:text-white"
-      style={{ fontFamily: 'Outfit, sans-serif' }}
-    >
-      {/* Google Fonts */}
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      <link 
-        href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Outfit:wght@300;400;500&display=swap" 
-        rel="stylesheet" 
-      />
-
-      {/* Cursor Glow Effect */}
+    <div className="min-h-screen bg-[#0D0D0D] text-white">
       <CursorGlow />
 
-      {/* Announcement Bar */}
-      <AnnouncementBar />
+      {showAnnouncement && (
+        <AnnouncementBar onClose={() => setShowAnnouncement(false)} />
+      )}
 
-      {/* Main Content Wrapper - adds padding when announcement bar is visible */}
-      <div className="pt-10">
-      
-      {/* Navigation */}
-      <Navbar 
-        currentPage={currentPage}
-        onNavigate={navigateTo}
-        walletBalance={walletBalance}
-        onAddFunds={handleAddFunds}
-        currency={currency}
-        onSettingsClick={() => setIsSettingsOpen(true)}
-        user={user}
-        onLoginClick={() => setIsAuthOpen(true)}
-        onLogout={handleLogout}
-        orderCount={orders.length}
-        onOrdersClick={() => setShowOrderHistory(true)}
+      <div className={showAnnouncement ? 'pt-10' : ''}>
+        <Navbar
+          user={appUser}
+          balance={balance}
+          currency={currency}
+          currentPage={currentPage}
+          onPageChange={handlePageChange}
+          onLoginClick={handleLoginClick}
+          onSignOut={handleSignOut}
+          onWalletClick={() => {
+            if (!user) { setShowAuth(true); return; }
+            setShowWallet(true);
+          }}
+          onSettingsClick={() => setShowSettings(true)}
+          onOrdersClick={() => {
+            if (!user) { setShowAuth(true); return; }
+            setShowOrders(true);
+          }}
+          onOrderClick={() => navigateToOrder()}
+        />
+
+        {renderPage()}
+      </div>
+
+      {/* Modals */}
+      <Auth
+        isOpen={showAuth}
+        onClose={() => setShowAuth(false)}
+        onSuccess={() => setShowAuth(false)}
       />
 
-      {/* Auth Modal */}
-      <Auth 
-        isOpen={isAuthOpen}
-        onClose={() => setIsAuthOpen(false)}
-        onLogin={handleLogin}
-        currency={currency}
-      />
-
-      {/* Settings Modal */}
-      <Settings 
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        currentCurrency={currency}
-        onCurrencyChange={handleCurrencyChange}
-      />
-
-      {/* Legal Pages Modal */}
-      {legalPage && (
-        <LegalPages 
-          page={legalPage}
-          onClose={() => setLegalPage(null)}
+      {showWallet && (
+        <Wallet
+          isOpen={showWallet}
+          onClose={() => setShowWallet(false)}
+          balance={balance}
+          currency={currency}
+          onAddFunds={async (amount: number) => {
+            await refreshWallet();
+          }}
+          isMobile={false}
         />
       )}
 
-      {/* Order History Modal */}
-      <OrderHistory 
-        isOpen={showOrderHistory}
-        onClose={() => setShowOrderHistory(false)}
-        orders={orders}
-        currency={currency}
-      />
-
-      {/* Live Chat */}
-      <LiveChat 
-        isOpen={showChat}
-        onClose={() => setShowChat(false)}
-        userName={user?.name}
-      />
-
-      {/* Chat Button (only show when chat is closed) */}
-      {!showChat && (
-        <ChatButton onClick={() => setShowChat(true)} />
+      {showSettings && (
+        <Settings
+          isOpen={showSettings}
+          onClose={() => setShowSettings(false)}
+          currency={currency}
+          onCurrencyChange={setCurrency}
+        />
       )}
 
-      {/* Cookie Consent */}
-      {!cookieConsent && (
-        <CookieConsent onAccept={() => setCookieConsent(true)} />
+      {showOrders && (
+        <OrderHistory
+          isOpen={showOrders}
+          onClose={() => setShowOrders(false)}
+          orders={orders}
+          currency={currency}
+        />
       )}
 
-      {/* Main Content */}
-      <main>
-        {renderPage()}
-      </main>
+      {showLegal && (
+        <LegalPages
+          page={showLegal}
+          onClose={() => setShowLegal(null)}
+        />
+      )}
 
-      {/* Newsletter Section (only on home) */}
-      {currentPage === 'home' && <Newsletter />}
-
-      {/* Support Section (only on home) */}
-      {currentPage === 'home' && <Support />}
-
-      {/* Footer */}
-      <Footer 
-        currency={currency}
-        onLegalClick={(page) => setLegalPage(page)}
-        onNavigate={navigateTo}
-      />
-
-      {/* Back to Top Button */}
-      <BackToTop />
-      </div>
+      <LiveChat />
+      <CookieConsent />
     </div>
   );
 }
-
-function BackToTop() {
-  const [show, setShow] = useState(false);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setShow(window.scrollY > 500);
-    };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  if (!show) return null;
-
-  return (
-    <button
-      onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-      className="fixed bottom-24 right-6 z-40 p-3 bg-[#C5A572] text-[#0D0D0D] rounded-full shadow-lg hover:bg-[#D4AF37] transition-all duration-300 hover:scale-110"
-    >
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-      </svg>
-    </button>
-  );
-}
-
-export default App;
