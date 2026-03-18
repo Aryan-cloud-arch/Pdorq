@@ -282,13 +282,40 @@ export const adminTransactionsApi = {
     return data || [];
   },
 
-  approve: async (transactionId: string) => {
+    approve: async (transactionId: string) => {
+    const { data: tx } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('id', transactionId)
+      .single();
+
+    if (!tx) return { error: 'Transaction not found' };
+
     const { error } = await supabase
       .from('transactions')
       .update({ status: 'completed' })
       .eq('id', transactionId);
-    
-    return { error };
+
+    if (error) return { error };
+
+    const { data: wallet } = await supabase
+      .from('wallets')
+      .select('*')
+      .eq('user_id', tx.user_id)
+      .single();
+
+    if (wallet) {
+      await supabase
+        .from('wallets')
+        .update({
+          balance: (wallet.balance || 0) + tx.amount,
+          total_deposited: (wallet.total_deposited || 0) + tx.amount,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', tx.user_id);
+    }
+
+    return { error: null };
   },
 
   reject: async (transactionId: string) => {
