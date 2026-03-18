@@ -28,17 +28,31 @@ import NotFoundPage from './components/NotFoundPage';
 import BlogPage from './components/BlogPage';
 import StatusPage from './components/StatusPage';
 import Newsletter from './components/Newsletter';
+import AdminDashboard from './components/AdminDashboard';
 import { platforms } from './data/platforms';
+import { isAdmin } from './lib/adminApi';
 
 const defaultCurrency = {
-  code: 'USD', symbol: '$', name: 'US Dollar', flag: '🇺🇸', rate: 1,
-  exchangeRate: '1.00'
+  code: 'USD', symbol: '$', name: 'US Dollar', flag: '🇺🇸', rate: 1
 };
 
 type Page = 'home' | 'services' | 'reviews' | 'faq' | 'order' | 'pricing' | 'how-it-works' | 'about' | 'contact' | 'blog' | 'status';
 
 export default function App() {
   const { user, profile, wallet, loading, signOut, refreshWallet } = useAuth();
+
+  // Load saved currency from localStorage
+  const getSavedCurrency = () => {
+    try {
+      const saved = localStorage.getItem('preferred-currency');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error('Error loading currency:', e);
+    }
+    return defaultCurrency;
+  };
 
   // UI State
   const [currentPage, setCurrentPage] = useState<Page>('home');
@@ -47,11 +61,21 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showOrders, setShowOrders] = useState(false);
   const [showLegal, setShowLegal] = useState<string | null>(null);
-  const [currency, setCurrency] = useState(defaultCurrency);
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [isAdminUser, setIsAdminUser] = useState(false);
+  const [currency, setCurrency] = useState(getSavedCurrency);
   const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
   const [selectedService, setSelectedService] = useState<string | null>(null);
-  const [orders, setOrders] = useState<any[]>([]);
   const [showAnnouncement, setShowAnnouncement] = useState(true);
+
+  // Check if user is admin
+  useEffect(() => {
+    if (user) {
+      isAdmin(user.id).then(setIsAdminUser);
+    } else {
+      setIsAdminUser(false);
+    }
+  }, [user]);
 
   // Build user object for components
   const appUser = profile ? {
@@ -79,14 +103,19 @@ export default function App() {
     window.scrollTo(0, 0);
   };
 
-  const handleOrderSubmit = (order: any) => {
-    setOrders(prev => [{ ...order, id: 'PDQ-' + Math.random().toString(36).substring(2, 8).toUpperCase(), date: new Date().toISOString(), status: 'processing' }, ...prev]);
+  const handleOrderSubmit = async () => {
+    await refreshWallet();
   };
 
   const handleLoginClick = () => setShowAuth(true);
 
   const handleSignOut = async () => {
     await signOut();
+  };
+
+  const handleCurrencyChange = (newCurrency: typeof currency) => {
+    setCurrency(newCurrency);
+    localStorage.setItem('preferred-currency', JSON.stringify(newCurrency));
   };
 
   // Page title
@@ -277,6 +306,8 @@ export default function App() {
             setShowOrders(true);
           }}
           onOrderClick={() => navigateToOrder()}
+          isAdmin={isAdminUser}
+          onAdminClick={() => setShowAdmin(true)}
         />
 
         {renderPage()}
@@ -295,7 +326,7 @@ export default function App() {
           onClose={() => setShowWallet(false)}
           balance={balance}
           currency={currency}
-          onAddFunds={async (amount: number) => {
+          onAddFunds={async () => {
             await refreshWallet();
           }}
           isMobile={false}
@@ -307,7 +338,7 @@ export default function App() {
           isOpen={showSettings}
           onClose={() => setShowSettings(false)}
           currency={currency}
-          onCurrencyChange={setCurrency}
+          onCurrencyChange={handleCurrencyChange}
         />
       )}
 
@@ -315,7 +346,6 @@ export default function App() {
         <OrderHistory
           isOpen={showOrders}
           onClose={() => setShowOrders(false)}
-          orders={orders}
           currency={currency}
         />
       )}
@@ -324,6 +354,13 @@ export default function App() {
         <LegalPages
           page={showLegal}
           onClose={() => setShowLegal(null)}
+        />
+      )}
+
+      {showAdmin && (
+        <AdminDashboard
+          isOpen={showAdmin}
+          onClose={() => setShowAdmin(false)}
         />
       )}
 
