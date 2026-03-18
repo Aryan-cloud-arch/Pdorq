@@ -1,3 +1,5 @@
+import AdminQRManager from './AdminQRManager';
+import AdminLoginLogs from './AdminLoginLogs';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -16,7 +18,7 @@ interface AdminDashboardProps {
   onClose: () => void;
 }
 
-type Tab = 'pending' | 'overview' | 'orders' | 'users' | 'transactions' | 'promos' | 'messages';
+type Tab = 'pending' | 'overview' | 'orders' | 'users' | 'transactions' | 'promos' | 'messages' | 'qrcodes' | 'logins';
 
 export default function AdminDashboard({ isOpen, onClose }: AdminDashboardProps) {
   const { user } = useAuth();
@@ -406,7 +408,9 @@ export default function AdminDashboard({ isOpen, onClose }: AdminDashboardProps)
     { id: 'users', label: '👥 Users', count: userStats.total || 0 },
     { id: 'transactions', label: '💳 All Transactions' },
     { id: 'promos', label: '🎟️ Promos' },
-    { id: 'messages', label: '💬 Messages' }
+    { id: 'messages', label: '💬 Messages' },
+    { id: 'qrcodes', label: '📱 QR Codes' },
+    { id: 'logins', label: '🔐 Login Logs' }
   ];
 
   return (
@@ -916,6 +920,12 @@ export default function AdminDashboard({ isOpen, onClose }: AdminDashboardProps)
           </div>
         )}
       </div>
+
+        {/* ==================== QR CODES TAB ==================== */}
+        {activeTab === "qrcodes" && <AdminQRManager />}
+
+        {/* ==================== LOGIN LOGS TAB ==================== */}
+        {activeTab === "logins" && <AdminLoginLogs users={users} />}
 
       {/* ==================== MODALS ==================== */}
       

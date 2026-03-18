@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { paymentMethods, getPaymentAddress, isCryptoMethod, paymentConfig } from '../lib/paymentConfig';
-import { qrCodeApi } from '../lib/invoiceApi';
+
 
 interface WalletProps {
   isOpen: boolean;
@@ -55,7 +55,7 @@ export default function Wallet({ isOpen, onClose, balance, currency, onAddFunds 
   // Load QR code when payment method selected
   useEffect(() => {
     if (paymentMethod) {
-      qrCodeApi.getByMethod(paymentMethod).then(setQrCodeUrl);
+      getQRCodeUrl(paymentMethod).then(setQrCodeUrl);
     }
   }, [paymentMethod]);
 
