@@ -1,7 +1,11 @@
 import { supabase } from './supabase';
 import type { Profile, Wallet, Transaction, Order, PromoCode } from './database.types';
 
-// Check if user is admin
+// ============================================
+// ADMIN CHECK - ONLY THIS EMAIL IS ADMIN
+// ============================================
+const ADMIN_EMAILS = ['kronoscontrolofficial@gmail.com'];
+
 export const isAdmin = async (userId: string): Promise<boolean> => {
   const { data } = await supabase
     .from('profiles')
@@ -9,9 +13,7 @@ export const isAdmin = async (userId: string): Promise<boolean> => {
     .eq('id', userId)
     .single();
   
-  // Add your admin emails here
-  const adminEmails = ['admin@pdorq.com', 'pdorq@gmail.com'];
-  return adminEmails.includes(data?.email || '');
+  return ADMIN_EMAILS.includes(data?.email?.toLowerCase() || '');
 };
 
 // ============================================
@@ -31,19 +33,29 @@ export const adminOrdersApi = {
     return data || [];
   },
 
+  getByStatus: async (status: string): Promise<Order[]> => {
+    const { data } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('status', status)
+      .order('created_at', { ascending: false });
+    
+    return data || [];
+  },
+
   updateStatus: async (orderId: string, status: string, adminNotes?: string) => {
     const updates: any = { 
       status, 
       updated_at: new Date().toISOString() 
     };
     
-    if (status === 'in_progress') {
+    if (status === 'processing' || status === 'in_progress') {
       updates.started_at = new Date().toISOString();
     }
     if (status === 'completed') {
       updates.completed_at = new Date().toISOString();
     }
-    if (adminNotes) {
+    if (adminNotes !== undefined) {
       updates.admin_notes = adminNotes;
     }
 
@@ -58,7 +70,6 @@ export const adminOrdersApi = {
   },
 
   refund: async (orderId: string) => {
-    // Get order details
     const { data: order } = await supabase
       .from('orders')
       .select('*')
@@ -86,15 +97,31 @@ export const adminOrdersApi = {
     return { success: true };
   },
 
+  delete: async (orderId: string) => {
+    const { error } = await supabase
+      .from('orders')
+      .delete()
+      .eq('id', orderId);
+    
+    return { error };
+  },
+
   getStats: async () => {
-    const { data: orders } = await supabase.from('orders').select('status, final_price');
+    const { data: orders } = await supabase.from('orders').select('status, final_price, created_at');
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     
     const stats = {
       total: orders?.length || 0,
       pending: orders?.filter(o => o.status === 'pending').length || 0,
       processing: orders?.filter(o => ['processing', 'in_progress'].includes(o.status)).length || 0,
       completed: orders?.filter(o => o.status === 'completed').length || 0,
-      revenue: orders?.filter(o => o.status === 'completed').reduce((sum, o) => sum + o.final_price, 0) || 0
+      failed: orders?.filter(o => o.status === 'failed').length || 0,
+      refunded: orders?.filter(o => o.status === 'refunded').length || 0,
+      todayOrders: orders?.filter(o => new Date(o.created_at) >= today).length || 0,
+      revenue: orders?.filter(o => o.status === 'completed').reduce((sum, o) => sum + o.final_price, 0) || 0,
+      todayRevenue: orders?.filter(o => o.status === 'completed' && new Date(o.created_at) >= today).reduce((sum, o) => sum + o.final_price, 0) || 0
     };
     
     return stats;
@@ -123,18 +150,48 @@ export const adminUsersApi = {
     return users;
   },
 
+  getById: async (userId: string) => {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+    
+    const { data: wallet } = await supabase
+      .from('wallets')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+    
+    const { data: orders } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    
+    const { data: transactions } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    
+    return { profile, wallet, orders, transactions };
+  },
+
   getStats: async () => {
-    const { data: profiles } = await supabase.from('profiles').select('created_at');
-    const { data: wallets } = await supabase.from('wallets').select('balance, total_deposited');
+    const { data: profiles } = await supabase.from('profiles').select('created_at, is_verified');
+    const { data: wallets } = await supabase.from('wallets').select('balance, total_deposited, total_spent');
     
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
     return {
       total: profiles?.length || 0,
+      verified: profiles?.filter(p => p.is_verified).length || 0,
       newToday: profiles?.filter(p => new Date(p.created_at) >= today).length || 0,
       totalBalance: wallets?.reduce((sum, w) => sum + (w.balance || 0), 0) || 0,
-      totalDeposited: wallets?.reduce((sum, w) => sum + (w.total_deposited || 0), 0) || 0
+      totalDeposited: wallets?.reduce((sum, w) => sum + (w.total_deposited || 0), 0) || 0,
+      totalSpent: wallets?.reduce((sum, w) => sum + (w.total_spent || 0), 0) || 0
     };
   },
 
@@ -153,8 +210,39 @@ export const adminUsersApi = {
       type: 'bonus',
       amount: amount,
       status: 'completed',
-      description: description
+      description: description || 'Admin bonus'
     });
+    
+    return { error };
+  },
+
+  deductBalance: async (userId: string, amount: number, description: string) => {
+    const { error } = await supabase.from('transactions').insert({
+      user_id: userId,
+      type: 'withdrawal',
+      amount: amount,
+      status: 'completed',
+      description: description || 'Admin deduction'
+    });
+    
+    return { error };
+  },
+
+  updateProfile: async (userId: string, updates: Partial<Profile>) => {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', userId);
+    
+    return { error };
+  },
+
+  deleteUser: async (userId: string) => {
+    // Delete in order: transactions, orders, wallet, profile
+    await supabase.from('transactions').delete().eq('user_id', userId);
+    await supabase.from('orders').delete().eq('user_id', userId);
+    await supabase.from('wallets').delete().eq('user_id', userId);
+    const { error } = await supabase.from('profiles').delete().eq('id', userId);
     
     return { error };
   }
@@ -171,6 +259,16 @@ export const adminTransactionsApi = {
       .order('created_at', { ascending: false });
     
     if (error) return [];
+    return data || [];
+  },
+
+  getByType: async (type: string): Promise<Transaction[]> => {
+    const { data } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('type', type)
+      .order('created_at', { ascending: false });
+    
     return data || [];
   },
 
@@ -203,15 +301,22 @@ export const adminTransactionsApi = {
   },
 
   getStats: async () => {
-    const { data } = await supabase.from('transactions').select('type, amount, status');
+    const { data } = await supabase.from('transactions').select('type, amount, status, created_at');
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     
     const completed = data?.filter(t => t.status === 'completed') || [];
+    const todayTx = completed.filter(t => new Date(t.created_at) >= today);
     
     return {
       totalDeposits: completed.filter(t => t.type === 'deposit').reduce((sum, t) => sum + t.amount, 0),
       totalPayments: completed.filter(t => t.type === 'order_payment').reduce((sum, t) => sum + t.amount, 0),
       totalRefunds: completed.filter(t => t.type === 'refund').reduce((sum, t) => sum + t.amount, 0),
-      pendingCount: data?.filter(t => t.status === 'pending').length || 0
+      totalBonuses: completed.filter(t => t.type === 'bonus').reduce((sum, t) => sum + t.amount, 0),
+      pendingCount: data?.filter(t => t.status === 'pending').length || 0,
+      todayDeposits: todayTx.filter(t => t.type === 'deposit').reduce((sum, t) => sum + t.amount, 0),
+      todayPayments: todayTx.filter(t => t.type === 'order_payment').reduce((sum, t) => sum + t.amount, 0)
     };
   }
 };
@@ -241,7 +346,7 @@ export const adminPromoApi = {
       .from('promo_codes')
       .insert({
         ...promo,
-        code: promo.code.toUpperCase(),
+        code: promo.code.toUpperCase().trim(),
         is_active: true
       })
       .select()
@@ -275,6 +380,16 @@ export const adminPromoApi = {
       .eq('id', promoId);
     
     return { error };
+  },
+
+  getStats: async () => {
+    const { data } = await supabase.from('promo_codes').select('is_active, used_count, discount_value, discount_type');
+    
+    return {
+      total: data?.length || 0,
+      active: data?.filter(p => p.is_active).length || 0,
+      totalUsed: data?.reduce((sum, p) => sum + (p.used_count || 0), 0) || 0
+    };
   }
 };
 
@@ -286,6 +401,16 @@ export const adminContactApi = {
     const { data } = await supabase
       .from('contact_messages')
       .select('*')
+      .order('created_at', { ascending: false });
+    
+    return data || [];
+  },
+
+  getByStatus: async (status: string) => {
+    const { data } = await supabase
+      .from('contact_messages')
+      .select('*')
+      .eq('status', status)
       .order('created_at', { ascending: false });
     
     return data || [];
@@ -311,5 +436,133 @@ export const adminContactApi = {
       .eq('id', messageId);
     
     return { error };
+  },
+
+  delete: async (messageId: string) => {
+    const { error } = await supabase
+      .from('contact_messages')
+      .delete()
+      .eq('id', messageId);
+    
+    return { error };
+  },
+
+  getStats: async () => {
+    const { data } = await supabase.from('contact_messages').select('status, created_at');
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    return {
+      total: data?.length || 0,
+      new: data?.filter(m => m.status === 'new').length || 0,
+      replied: data?.filter(m => m.status === 'replied').length || 0,
+      todayMessages: data?.filter(m => new Date(m.created_at) >= today).length || 0
+    };
+  }
+};
+
+// ============================================
+// ADMIN REVIEWS API
+// ============================================
+export const adminReviewsApi = {
+  getAll: async () => {
+    const { data } = await supabase
+      .from('reviews')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    return data || [];
+  },
+
+  approve: async (reviewId: string) => {
+    const { error } = await supabase
+      .from('reviews')
+      .update({ is_visible: true, is_verified: true })
+      .eq('id', reviewId);
+    
+    return { error };
+  },
+
+  hide: async (reviewId: string) => {
+    const { error } = await supabase
+      .from('reviews')
+      .update({ is_visible: false })
+      .eq('id', reviewId);
+    
+    return { error };
+  },
+
+  addResponse: async (reviewId: string, response: string) => {
+    const { error } = await supabase
+      .from('reviews')
+      .update({ admin_response: response })
+      .eq('id', reviewId);
+    
+    return { error };
+  },
+
+  delete: async (reviewId: string) => {
+    const { error } = await supabase
+      .from('reviews')
+      .delete()
+      .eq('id', reviewId);
+    
+    return { error };
+  }
+};
+
+// ============================================
+// ADMIN REFERRALS API
+// ============================================
+export const adminReferralsApi = {
+  getAll: async () => {
+    const { data } = await supabase
+      .from('referrals')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    return data || [];
+  },
+
+  creditBonus: async (referralId: string, amount: number) => {
+    const { data: referral } = await supabase
+      .from('referrals')
+      .select('*')
+      .eq('id', referralId)
+      .single();
+    
+    if (!referral) return { error: 'Referral not found' };
+
+    // Add bonus to referrer
+    await supabase.from('transactions').insert({
+      user_id: referral.referrer_id,
+      type: 'referral_bonus',
+      amount: amount,
+      status: 'completed',
+      description: 'Referral bonus'
+    });
+
+    // Update referral status
+    await supabase
+      .from('referrals')
+      .update({ 
+        status: 'credited', 
+        bonus_amount: amount,
+        credited_at: new Date().toISOString()
+      })
+      .eq('id', referralId);
+
+    return { success: true };
+  },
+
+  getStats: async () => {
+    const { data } = await supabase.from('referrals').select('status, bonus_amount');
+    
+    return {
+      total: data?.length || 0,
+      credited: data?.filter(r => r.status === 'credited').length || 0,
+      totalBonusPaid: data?.filter(r => r.status === 'credited').reduce((sum, r) => sum + (r.bonus_amount || 0), 0) || 0
+    };
   }
 };
