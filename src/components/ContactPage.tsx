@@ -82,6 +82,14 @@ export default function ContactPage() {
               </div>
               <h3 className="text-white font-medium mb-2">Email</h3>
               <p className="text-white/60 text-sm">contact@pdorq.com</p>
+              <p className="text-white/40 text-xs mt-1">Under 2 hours</p>
+            </div>
+
+            <div className="bg-white/5 border border-white/10 rounded-xl p-6 text-center hover:border-gold/20 transition-all">
+              <span className="text-3xl mb-3 block">📞</span>
+              <h3 className="text-white font-medium mb-2">Phone</h3>
+              <p className="text-white/60 text-sm">+62 831-7539-4100</p>
+              <p className="text-white/40 text-xs mt-1">Available 24/7</p>
               <p className="text-white/40 text-xs mt-1">Response within 2 hours</p>
             </div>
 
